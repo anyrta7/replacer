@@ -62,7 +62,7 @@ update_script() {
     echo "Updating script from GitHub..."
     if command -v git &> /dev/null && [ -d .git ]; then
         echo "Updating script via git..."
-        git pull origin main
+        git pull origin master
     elif command -v curl &> /dev/null; then
         echo "Updating script via curl..."
         curl -O https://github.com/anyrta7/replacer/raw/main/replacer.sh
