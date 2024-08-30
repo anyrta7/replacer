@@ -1,5 +1,7 @@
 # Replacer Script
 
+![logo](images/logo.png)
+
 ## Overview
 
 The Replacer Script is a versatile tool for modifying text in files or from standard input (stdin). It supports various operations such as adding text, replacing or removing text, batch processing, backup creation, logging, interactive mode, and more.
