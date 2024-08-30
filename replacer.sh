@@ -48,7 +48,7 @@ show_version() {
 update_script() {
     echo "Updating script from GitHub..."
     if command -v git &> /dev/null && [ -d .git ]; then
-        git pull origin main
+        git pull origin master
     elif command -v curl &> /dev/null; then
         curl -O https://github.com/anyrta7/replacer/raw/main/replacer.sh
         chmod +x replacer.sh
