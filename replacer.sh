@@ -1,4 +1,13 @@
 #!/bin/bash
+cat << "EOF"
+                                                         
+,------.               ,--.                             
+|  .--. ' ,---.  ,---. |  | ,--,--. ,---. ,---. ,--.--. 
+|  '--'.'| .-. :| .-. ||  |' ,-.  || .--'| .-. :|  .--' 
+|  |\  \ \   --.| '-' '|  |\ '-'  |\ `--.\   --.|  |    
+`--' '--' `----'|  |-' `--' `--`--' `---' `----'`--'    
+                `--'                                    
+EOF
 
 # Global variables
 LOG_FILE="replacer.log"
@@ -41,11 +50,11 @@ update_script() {
     if command -v git &> /dev/null && [ -d .git ]; then
         git pull origin main
     elif command -v curl &> /dev/null; then
-        curl -O https://github.com/anyrta7/replacer
+        curl -O https://github.com/anyrta7/replacer/raw/main/replacer.sh
         chmod +x replacer.sh
         echo "Script updated successfully."
     elif command -v wget &> /dev/null; then
-        wget https://github.com/anyrta7/replacer
+        wget https://github.com/anyrta7/replacer/raw/main/replacer.sh
         chmod +x replacer.sh
         echo "Script updated successfully."
     else
