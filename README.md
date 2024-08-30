@@ -11,11 +11,11 @@ The Replacer Script is a versatile tool for modifying text in files or from stan
 1. **Download the Script:**
    Use one of the following commands to download the script:
     ```bash
-    wget https://github.com/username/replacer/raw/main/replacer.sh
+    wget https://github.com/anyrta7/replacer/raw/main/replacer.sh
     ```
     or
     ```bash
-    curl -O https://github.com/username/replacer/raw/main/replacer.sh
+    curl -O https://github.com/anyrta7/replacer/raw/main/replacer.sh
     ```
 2. **Make the Script Executable:**
     Grant execute permissions to the script with the following command:
