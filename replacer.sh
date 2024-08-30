@@ -9,51 +9,67 @@ cat << "EOF"
                 `--'                                    
 EOF
 
-# Global variables
-LOG_FILE="replacer.log"
+# Global Variables
+VERSION="1.1.0"
 BACKUP_SUFFIX=".bak"
+LOG_FILE="replacer.log"
+add_first=""
+add_end=""
+select_text=""
+replace_text=""
+output_file=""
+use_regex=false
+create_backup=false
+logging_enabled=false
+interactive_mode=false
+dry_run=false
+verbose=false
 
-# Display usage and help information
+# Display help message
 show_help() {
-    echo "Usage: ./replacer.sh <input_file(s)> [options]"
-    echo "Options:"
-    echo "  -h,  --help                    Display this help message."
-    echo "  --update                       Update the script to the latest version from GitHub."
-    echo "  --version                      Display script version."
-    echo "  -af, --add-first   <text>      Add text at the beginning of each line."
-    echo "  -ae, --add-end     <text>      Add text at the end of each line."
-    echo "  -s,  --select      <text>      Select text to search in each line."
-    echo "  -r,  --replace     <text>      Replace selected text. If empty, remove selected text."
-    echo "  -o,  --output      <file>      Specify output file."
-    echo "  --regex                        Use regex for text selection and replacement."
-    echo "  --ignore-case                  Case-insensitive search and replace."
-    echo "  --multiline                    Enable multiline regex processing."
-    echo "  --backup                       Create a backup of the original file."
-    echo "  --log                          Enable logging to replacer.log."
-    echo "  --interactive                  Enable interactive mode."
-    echo "  --dry-run                      Show what would be done without making changes."
-    echo
-    echo "Examples:"
-    echo "  ./replacer.sh input.txt -af 'https://' -ae '/path' --output output.txt"
-    echo "  ./replacer.sh input1.txt input2.txt -s 'old_text' -r 'new_text' --backup --log"
-    echo "  cat input.txt | ./replacer.sh -s 'foo' -r ''"
+    cat << EOF
+Usage: ./replacer.sh <input_file(s)> [options]
+Options:
+  -af, --add-first   <text>          Add text at the beginning of each line.
+  -ae, --add-end     <text>          Add text at the end of each line.
+  -s,  --select      <text>          Select text to search in each line.
+  -r,  --replace     <text>          Replace selected text. If empty, remove selected text.
+  -o,  --output      <file>          Specify output file. If not specified, overwrite input file.
+  -g,  --regex       Use regex for text selection and replacement.
+  -b,  --backup      Create a backup of the original file.
+  -l,  --log         Enable logging to $LOG_FILE.
+  -x,  --interactive Enable interactive mode.
+  -n,  --dry-run     Show what would be done without making changes.
+  -v,  --verbose     Enable verbose output.
+  -V,  --version     Display script version.
+  -u,  --update      Update the script to the latest version from GitHub.
+  -h,  --help        Display this help message.
+Examples:
+  ./replacer.sh input.txt -af 'https://' -ae '/path' -o output.txt
+  ./replacer.sh input1.txt input2.txt -s 'old_text' -r 'new_text'
+  cat input.txt | ./replacer.sh -s 'foo' -r ''
+  ./replacer.sh -u
+EOF
 }
 
-# Display version information
+# Display script version
 show_version() {
-    echo "Replacer version 1.0.0"
+    echo "Replacer version $VERSION"
 }
 
 # Update the script from GitHub
 update_script() {
     echo "Updating script from GitHub..."
     if command -v git &> /dev/null && [ -d .git ]; then
-        git pull origin master
+        echo "Updating script via git..."
+        git pull origin main
     elif command -v curl &> /dev/null; then
+        echo "Updating script via curl..."
         curl -O https://github.com/anyrta7/replacer/raw/main/replacer.sh
         chmod +x replacer.sh
         echo "Script updated successfully."
     elif command -v wget &> /dev/null; then
+        echo "Updating script via wget..."
         wget https://github.com/anyrta7/replacer/raw/main/replacer.sh
         chmod +x replacer.sh
         echo "Script updated successfully."
@@ -66,179 +82,222 @@ update_script() {
 
 # Log messages to a file
 log_message() {
+    local message="$1"
     if [[ "$logging_enabled" == true ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" >> "$LOG_FILE"
+        [ "$verbose" == true ] && echo "Logged message: $message"
     fi
 }
 
-# Perform a dry run to show changes without applying them
-perform_dry_run() {
-    echo "Dry Run Mode: Previewing changes..."
-    echo "$output"
+# Create a backup of the original file
+create_backup() {
+    local file="$1"
+    if [[ "$create_backup" == true ]]; then
+        cp "$file" "$file$BACKUP_SUFFIX"
+        log_message "Backup created for $file as $file$BACKUP_SUFFIX"
+        [ "$verbose" == true ] && echo "Backup created for $file as $file$BACKUP_SUFFIX"
+    fi
 }
 
-# Handle interactive mode for user confirmation
-confirm_action() {
+# Apply text modifications
+apply_modifications() {
+    local content="$1"
+
+    [ "$verbose" == true ] && echo "Applying modifications..."
+
+    # Add first text if provided
+    if [[ -n "$add_first" ]]; then
+        content=$(echo "$content" | awk -v prefix="$add_first" '{print prefix $0}')
+        log_message "Added '$add_first' to the beginning of each line."
+        [ "$verbose" == true ] && echo "Added '$add_first' to the beginning of each line."
+    fi
+
+    # Add end text if provided
+    if [[ -n "$add_end" ]]; then
+        content=$(echo "$content" | awk -v suffix="$add_end" '{print $0 suffix}')
+        log_message "Added '$add_end' to the end of each line."
+        [ "$verbose" == true ] && echo "Added '$add_end' to the end of each line."
+    fi
+
+    # Replace or remove text
+    if [[ -n "$select_text" ]]; then
+        local awk_command
+        if [[ "$use_regex" == true ]]; then
+            awk_command='{gsub(/'"$select_text"'/, "'"$replace_text"'")} {print}'
+        else
+            awk_command='{gsub("'"$select_text"'", "'"$replace_text"'")} {print}'
+        fi
+        content=$(echo "$content" | awk "$awk_command")
+        log_message "Replaced '$select_text' with '$replace_text'."
+        [ "$verbose" == true ] && echo "Replaced '$select_text' with '$replace_text'."
+    fi
+
+    echo "$content"
+}
+
+# Show progress for large files
+show_progress() {
+    local file="$1"
+    local total_lines=$(wc -l < "$file")
+    local processed_lines=0
+
+    while read -r line; do
+        processed_lines=$((processed_lines + 1))
+        local progress=$((processed_lines * 100 / total_lines))
+        echo -ne "Processing: $progress% complete\r"
+    done < "$file"
+    echo -ne '\n'
+}
+
+# Process a single file
+process_file() {
+    local input_file="$1"
+
+    [ "$verbose" == true ] && echo "Processing file: $input_file"
+
+    if [[ ! -f "$input_file" ]]; then
+        echo "Error: File $input_file does not exist."
+        exit 1
+    fi
+
+    # Show progress for large files
+    local line_count=$(wc -l < "$input_file")
+    if [[ "$line_count" -gt 1000 ]]; then
+        show_progress "$input_file"
+    fi
+
+    local input=$(cat "$input_file")
+    [ "$verbose" == true ] && echo "Read input from $input_file."
+
+    local output=$(apply_modifications "$input")
+
+    # Create a backup if needed
+    create_backup "$input_file"
+
+    # Confirm action in interactive mode
     if [[ "$interactive_mode" == true ]]; then
+        echo "Modifications:"
+        echo "$output"
         read -p "Proceed with this action? (y/n): " choice
         case "$choice" in
-            y|Y ) return 0 ;;
+            y|Y ) ;;
             * ) echo "Action cancelled by user." ; exit 1 ;;
         esac
     fi
-    return 0
-}
 
-# Backup the original file
-create_backup() {
-    if [[ "$create_backup" == true ]]; then
-        cp "$1" "$1$BACKUP_SUFFIX"
-        log_message "Backup created for $1 as $1$BACKUP_SUFFIX"
+    # Perform dry run or apply changes
+    if [[ "$dry_run" == true ]]; then
+        echo "Dry Run Mode: Previewing changes..."
+        echo "$output"
+    else
+        # Output to the specified file or overwrite the original
+        if [[ -n "$output_file" ]]; then
+            echo "$output" > "$output_file"
+            echo "Output written to $output_file."
+            log_message "Output written to $output_file for $input_file"
+        else
+            echo "$output" > "$input_file"
+            echo "Modified $input_file."
+            log_message "Modified $input_file"
+        fi
     fi
 }
 
-# Validate and process input files
+# Process input files
 process_files() {
-    for input_file in "${input_files[@]}"; do
-        if [[ ! -f "$input_file" ]]; then
-            echo "Error: File $input_file does not exist."
-            exit 1
-        fi
+    local files=("${!1}")
 
-        local input=$(cat "$input_file")
-        local output="$input"
+    [ "$verbose" == true ] && echo "Processing ${#files[@]} files."
 
-        # Create a backup if needed
-        create_backup "$input_file"
-
-        # Add first text if provided
-        if [[ -n "$add_first" ]]; then
-            output=$(echo "$output" | sed "s/^/$add_first/")
-            log_message "Added '$add_first' to the beginning of each line in $input_file"
-        fi
-
-        # Add end text if provided
-        if [[ -n "$add_end" ]]; then
-            output=$(echo "$output" | sed "s/$/$add_end/")
-            log_message "Added '$add_end' to the end of each line in $input_file"
-        fi
-
-        # Replace or remove text
-        if [[ -n "$select_text" ]]; then
-            replace_text="${replace_text:-}"  # Default to empty if not provided
-            sed_options="s/$select_text/$replace_text/g"
-
-            # Configure sed options based on regex, ignore case, and multiline
-            [[ "$use_regex" == true ]] && sed_options="-E $sed_options"
-            [[ "$ignore_case" == true ]] && sed_options="I $sed_options"
-            [[ "$multiline" == true ]] && sed_options="M $sed_options"
-
-            output=$(echo "$output" | sed $sed_options)
-            log_message "Replaced '$select_text' with '$replace_text' in $input_file"
-        fi
-
-        # Confirm action in interactive mode
-        confirm_action
-
-        # Perform dry run or apply changes
-        if [[ "$dry_run" == true ]]; then
-            perform_dry_run
-        else
-            # Output to the specified file or overwrite the original
-            if [[ -n "$output_file" ]]; then
-                echo "$output" > "$output_file"
-                echo "Output written to $output_file."
-                log_message "Output written to $output_file for $input_file"
-            else
-                echo "$output" > "$input_file"
-                echo "Modified $input_file."
-                log_message "Modified $input_file"
-            fi
-        fi
+    for input_file in "${files[@]}"; do
+        [ "$verbose" == true ] && echo "Starting processing for file: $input_file"
+        process_file "$input_file"
+        [ "$verbose" == true ] && echo "Completed processing for file: $input_file"
     done
 }
 
-# Validate if the input file(s) are provided
-if [[ $# -eq 0 ]]; then
-    echo "Error: No input files provided."
-    show_help
-    exit 1
-fi
-
 # Parse options and files
-input_files=()
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -af|--add-first)
-            add_first="$2"
-            shift 2
-            ;;
-        -ae|--add-end)
-            add_end="$2"
-            shift 2
-            ;;
-        -s|--select)
-            select_text="$2"
-            shift 2
-            ;;
-        -r|--replace)
-            replace_text="$2"
-            shift 2
-            ;;
-        -o|--output)
-            output_file="$2"
-            shift 2
-            ;;
-        --regex)
-            use_regex=true
-            shift
-            ;;
-        --ignore-case)
-            ignore_case=true
-            shift
-            ;;
-        --multiline)
-            multiline=true
-            shift
-            ;;
-        --backup)
-            create_backup=true
-            shift
-            ;;
-        --log)
-            logging_enabled=true
-            shift
-            ;;
-        --interactive)
-            interactive_mode=true
-            shift
-            ;;
-        --dry-run)
-            dry_run=true
-            shift
-            ;;
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        --version)
-            show_version
-            exit 0
-            ;;
-        --update)
-            update_script
-            ;;
-        -*)
-            echo "Error: Unknown option: $1"
-            show_help
-            exit 1
-            ;;
-        *)
-            input_files+=("$1")
-            shift
-            ;;
-    esac
-done
+parse_options() {
+    local files=()
 
-# Process the input files
-process_files
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -af|--add-first)
+                add_first="$2"
+                shift 2
+                ;;
+            -ae|--add-end)
+                add_end="$2"
+                shift 2
+                ;;
+            -s|--select)
+                select_text="$2"
+                shift 2
+                ;;
+            -r|--replace)
+                replace_text="$2"
+                shift 2
+                ;;
+            -o|--output)
+                output_file="$2"
+                shift 2
+                ;;
+            -g|--regex)
+                use_regex=true
+                shift
+                ;;
+            -b|--backup)
+                create_backup=true
+                shift
+                ;;
+            -l|--log)
+                logging_enabled=true
+                shift
+                ;;
+            -x|--interactive)
+                interactive_mode=true
+                shift
+                ;;
+            -n|--dry-run)
+                dry_run=true
+                shift
+                ;;
+            -v|--verbose)
+                verbose=true
+                shift
+                ;;
+            -V|--version)
+                show_version
+                exit 0
+                ;;
+            -u|--update)
+                update_script
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -*)
+                echo "Error: Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+            *)
+                files+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    if [[ ${#files[@]} -eq 0 ]]; then
+        echo "Error: No input files provided."
+        show_help
+        exit 1
+    fi
+
+    # Process files
+    process_files files[@]
+}
+
+# Main execution
+parse_options "$@"
