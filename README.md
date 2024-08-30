@@ -81,3 +81,8 @@ To use the script, run it with the input file(s) and desired options. The script
 
 For additional help or information, refer to the help message using `-h` or `--help`.
 
+## Preview
+
+![Before Replace](images/before-replace.png)
+![After replace add https](images/after-replace-add-https.png)
+![After replace add register path](images/after-replace-add-register-path.png)
