@@ -203,101 +203,44 @@ process_file() {
     fi
 }
 
-# Process input files
-process_files() {
-    local files=("${!1}")
+# Process stdin
+process_stdin() {
+    [ "$verbose" == true ] && echo "Processing input from stdin."
 
-    [ "$verbose" == true ] && echo "Processing ${#files[@]} files."
+    local input=$(cat)  # Read all stdin input
+    local output=$(apply_modifications "$input")
 
-    for input_file in "${files[@]}"; do
-        [ "$verbose" == true ] && echo "Starting processing for file: $input_file"
-        process_file "$input_file"
-        [ "$verbose" == true ] && echo "Completed processing for file: $input_file"
-    done
-}
-
-# Parse options and files
-parse_options() {
-    local files=()
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -af|--add-first)
-                add_first="$2"
-                shift 2
-                ;;
-            -ae|--add-end)
-                add_end="$2"
-                shift 2
-                ;;
-            -s|--select)
-                select_text="$2"
-                shift 2
-                ;;
-            -r|--replace)
-                replace_text="$2"
-                shift 2
-                ;;
-            -o|--output)
-                output_file="$2"
-                shift 2
-                ;;
-            -g|--regex)
-                use_regex=true
-                shift
-                ;;
-            -b|--backup)
-                create_backup=true
-                shift
-                ;;
-            -l|--log)
-                logging_enabled=true
-                shift
-                ;;
-            -x|--interactive)
-                interactive_mode=true
-                shift
-                ;;
-            -n|--dry-run)
-                dry_run=true
-                shift
-                ;;
-            -v|--verbose)
-                verbose=true
-                shift
-                ;;
-            -V|--version)
-                show_version
-                exit 0
-                ;;
-            -u|--update)
-                update_script
-                ;;
-            -h|--help)
-                show_help
-                exit 0
-                ;;
-            -*)
-                echo "Error: Unknown option: $1"
-                show_help
-                exit 1
-                ;;
-            *)
-                files+=("$1")
-                shift
-                ;;
+    # Confirm action in interactive mode
+    if [[ "$interactive_mode" == true ]]; then
+        echo "Modifications:"
+        echo "$output"
+        read -p "Proceed with this action? (y/n): " choice
+        case "$choice" in
+            y|Y ) ;;
+            * ) echo "Action cancelled by user." ; exit 1 ;;
         esac
-    done
-
-    if [[ ${#files[@]} -eq 0 ]]; then
-        echo "Error: No input files provided."
-        show_help
-        exit 1
     fi
 
-    # Process files
-    process_files files[@]
+    # Perform dry run or output to stdout
+    if [[ "$dry_run" == true ]]; then
+        echo "Dry Run Mode: Previewing changes..."
+        echo "$output"
+    else
+        echo "$output"  # Output to stdout
+    fi
 }
 
-# Main execution
-parse_options "$@"
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -af|--add-first) add_first="$2"; shift 2 ;;
+        -ae|--add-end) add_end="$2"; shift 2 ;;
+        -s|--select) select_text="$2"; shift 2 ;;
+        -r|--replace) replace_text="$2"; shift 2 ;;
+        -o|--output) output_file="$2"; shift 2 ;;
+        -g|--regex) use_regex=true; shift ;;
+        -b|--backup) create_backup=true; shift ;;
+        -l|--log) logging_enabled=true; shift ;;
+        -x|--interactive) interactive_mode=true; shift ;;
+        -n|--dry-run) dry_run=true; shift ;;
+        -v|--verb
